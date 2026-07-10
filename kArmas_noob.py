@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-╔═══════════════════════════════════════════════════════════════════[...]
+╔═════════════════════════════════════════════════════════════════════╗
 ║                                                                      ║
 ║   ██╗  ██╗ █████╗ ██████╗ ███╗   ███╗ █████╗ ███████╗              ║
 ║   ██║ ██╔╝██╔══██╗██╔══██╗████╗ ████║██╔══██╗██╔════╝              ║
 ║   █████╔╝ ███████║██████╔╝██╔████╔██║███████║███████╗              ║
-║   ██╔═██╗ ██╔══██║██╔══██╗██║╚██╔╝██║██╔══██║╚════██║              ║
+║   ██╔═██╗ ██╔══██║���█╔══██╗██║╚██╔╝██║██╔══██║╚════██║              ║
 ║   ██║  ██╗██║  ██║██║  ██║██║ ╚═╝ ██║██║  ██║███████║              ║
 ║   ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝              ║
 ║                                                                      ║
@@ -19,7 +19,7 @@
 ║   ░░░   kArmas_noob — Template-Based Vulnerability Scanner   ░░░    ║
 ║         Passive Detection │ No Exploitation │ Auth Required          ║
 ║                  "We Are Legion. We Do Not Forgive."                 ║
-╚═══════════════════════════════════════════════════════════════════[...]
+╚═════════════════════════════════════════════════════════════════════╝
 
   AUTHORIZED USE ONLY — Passive/Detection mode.
   No active exploitation. Requires --agree flag.
@@ -53,7 +53,7 @@ from typing import Any
 
 # ─────────────────────────────────────────────
 #  ANSI PALETTE
-# ─────────────────────────────────────────────
+# ─────────��───────────────────────────────────
 G  = "\033[92m"   # green
 R  = "\033[91m"   # red
 Y  = "\033[93m"   # yellow
@@ -434,7 +434,7 @@ TEMPLATES: list[dict[str, Any]] = [
         "description": "Detailed stack trace or debug page is publicly accessible.",
         "matchers": [
             {"type": "body_regex",
-             "pattern": r"(Traceback \(most recent call last\)|at [a-zA-Z.]+\(.*\.java:\d+\)|Exception in thread|PHPFatal error|<b>Fatal error</b>|Whitelabel Error Page|DebugView|django\.core\.excepti[...]
+             "pattern": r"(Traceback \(most recent call last\)|at [a-zA-Z.]+\(.*\.java:\d+\)|Exception in thread|PHPFatal error|<b>Fatal error</b>|Whitelabel Error Page|DebugView|django\.core\.exceptions)"}
         ],
         "extractors": [
             {"type": "body_regex_extract", "pattern": r"(Exception|Error)[:\s]+([^\n<]{5,80})", "label": "error-msg"}
