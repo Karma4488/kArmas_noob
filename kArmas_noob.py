@@ -794,6 +794,776 @@ TEMPLATES: list[dict[str, Any]] = [
         ],
         "extractors": []
     },
+
+    # ── SQL INJECTION & DATABASE ──────────────────────────────────
+    {
+        "id": "sql-error-messages",
+        "name": "SQL Error Messages Exposed",
+        "severity": "high",
+        "category": "sql-injection",
+        "tags": ["sqli", "database", "disclosure"],
+        "description": "SQL error messages are exposed in the response — database type and query structure may be disclosed.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(SQL syntax.*?MySQL|supplied argument is not a valid MySQL|ORA-\d{5}|Microsoft OLE DB Provider for SQL Server|Unclosed quotation mark|quoted string not properly terminated|pg_query\(\)|PostgreSQL.*ERROR|SQLite3::query\(\)|SQLSTATE\[)"}
+        ],
+        "extractors": [
+            {"type": "body_regex_extract",
+             "pattern": r"(ORA-\d{5}|SQLSTATE\[[\w]+\]|SQL syntax[^<]{5,80})", "label": "sql-error"}
+        ]
+    },
+    {
+        "id": "sqli-parameter-patterns",
+        "name": "SQLi Parameter Detection Patterns",
+        "severity": "high",
+        "category": "sql-injection",
+        "tags": ["sqli", "database"],
+        "description": "Response body contains patterns indicating SQL injection vulnerability in request parameters.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(You have an error in your SQL syntax|Warning: mysql_|mysql_fetch_array\(\)|Syntax error.*unexpected|Incorrect syntax near|Division by zero in SQL|error in your SQL)"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "database-backup-accessible",
+        "name": "Database Backup File Accessible",
+        "severity": "critical",
+        "category": "sql-injection",
+        "tags": ["database", "backup", "exposure"],
+        "description": "Database backup file is publicly accessible — full database dump may be downloadable.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/db_backup.sql", "/database_backup.sql", "/data.sql",
+                       "/mysqldump.sql", "/backup.db", "/site.db", "/app.db",
+                       "/db.sqlite", "/db.sqlite3", "/database.db"],
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "jdbc-connection-string-exposed",
+        "name": "JDBC Connection String Exposed",
+        "severity": "critical",
+        "category": "sql-injection",
+        "tags": ["database", "credentials", "disclosure"],
+        "description": "JDBC connection string found in response — database credentials may be exposed.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"jdbc:(mysql|postgresql|oracle|sqlserver|db2|sqlite)://[^\s\"'<]{5,120}"}
+        ],
+        "extractors": [
+            {"type": "body_regex_extract",
+             "pattern": r"jdbc:[a-z:/@\w.\-]+", "label": "jdbc-url"}
+        ]
+    },
+    {
+        "id": "mongodb-injection-indicators",
+        "name": "MongoDB Injection Indicators",
+        "severity": "high",
+        "category": "sql-injection",
+        "tags": ["nosql", "mongodb", "database"],
+        "description": "MongoDB NoSQL injection indicators detected in the response body.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(MongoError|MongoServerError|BSONTypeError|CastError|mongo_connect|Mongo\\.connect|MongooseError|MongoNetworkError|failed to connect to server \[.*\] on first connect)"}
+        ],
+        "extractors": []
+    },
+
+    # ── AUTHENTICATION & AUTHORIZATION ────────────────────────────
+    {
+        "id": "default-credentials-login",
+        "name": "Default Credentials Accepted",
+        "severity": "critical",
+        "category": "authentication",
+        "tags": ["auth", "default-credentials", "login"],
+        "description": "Application login page detected — default credentials (admin/admin) may be accepted.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/admin/login", "/login", "/admin", "/wp-login.php",
+                       "/user/login", "/signin", "/auth/login"],
+             "body_regex": r"(password|passwd|login|username|sign.?in)",
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "weak-password-policy",
+        "name": "Weak Password Requirements Indicated",
+        "severity": "medium",
+        "category": "authentication",
+        "tags": ["auth", "password-policy"],
+        "description": "Password policy hints indicate weak requirements (min 4–6 chars, no complexity).",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(minimum.{0,20}(4|5|6)\s*characters|password.{0,30}at least (4|5|6)|minlength=[\"']?[456][\"']?)"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "session-fixation-vulnerability",
+        "name": "Session Fixation Vulnerability",
+        "severity": "high",
+        "category": "authentication",
+        "tags": ["session", "auth", "fixation"],
+        "description": "Session ID does not change after authentication — session fixation attack possible.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(PHPSESSID|JSESSIONID|ASP\.NET_SessionId|session_id)[^\w]"}
+        ],
+        "extractors": [
+            {"type": "body_regex_extract",
+             "pattern": r"(PHPSESSID|JSESSIONID|ASP\.NET_SessionId)=[a-zA-Z0-9]{8,}", "label": "session-id"}
+        ]
+    },
+    {
+        "id": "auth-bypass-patterns",
+        "name": "Authentication Bypass Patterns",
+        "severity": "critical",
+        "category": "authentication",
+        "tags": ["auth", "bypass"],
+        "description": "Response body contains indicators of authentication bypass vulnerabilities.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(admin panel|administrator area|management console|control panel).{0,200}(no password|unauthenticated|bypass|open access)"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "api-key-in-response",
+        "name": "API Key Exposed in Response",
+        "severity": "high",
+        "category": "authentication",
+        "tags": ["api", "secrets", "disclosure"],
+        "description": "API key or secret found in HTTP response body.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(api[_\-]?key|apikey|api[_\-]?secret|client[_\-]?secret)\s*[=:\"']\s*[a-zA-Z0-9_\-]{16,64}"}
+        ],
+        "extractors": [
+            {"type": "body_regex_extract",
+             "pattern": r"(api[_\-]?key|apikey|api[_\-]?secret)[\"'\s]*[=:][\"'\s]*([a-zA-Z0-9_\-]{16,64})",
+             "label": "api-key"}
+        ]
+    },
+    {
+        "id": "oauth-misconfiguration",
+        "name": "OAuth/OpenID Misconfiguration",
+        "severity": "high",
+        "category": "authentication",
+        "tags": ["oauth", "openid", "auth", "misconfiguration"],
+        "description": "OAuth or OpenID Connect endpoint exposed with potential misconfiguration.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/.well-known/openid-configuration", "/oauth/authorize",
+                       "/oauth2/token", "/connect/token", "/.well-known/oauth-authorization-server"],
+             "body_regex": r"(issuer|authorization_endpoint|token_endpoint|client_id)",
+             "status_codes": [200]}
+        ],
+        "extractors": [
+            {"type": "body_regex_extract",
+             "pattern": r"\"issuer\"\s*:\s*\"([^\"]+)\"", "label": "oauth-issuer"}
+        ]
+    },
+    {
+        "id": "saml-endpoint-exposed",
+        "name": "SAML Endpoint Exposed",
+        "severity": "medium",
+        "category": "authentication",
+        "tags": ["saml", "auth", "sso"],
+        "description": "SAML SSO endpoint publicly accessible — SAML misconfigurations may be testable.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/saml/metadata", "/saml2/metadata", "/auth/saml",
+                       "/sso/saml", "/saml/sso", "/Shibboleth.sso/Metadata"],
+             "body_regex": r"(EntityDescriptor|SAMLMetadata|urn:oasis:names:tc:SAML)",
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "2fa-bypass-indicators",
+        "name": "2FA Bypass Indicators",
+        "severity": "high",
+        "category": "authentication",
+        "tags": ["2fa", "mfa", "auth", "bypass"],
+        "description": "Response suggests 2FA/MFA can be bypassed or is poorly implemented.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(backup.?code|recovery.?code|skip.{0,20}2fa|bypass.{0,20}two.?factor|remember.{0,30}this.{0,10}device.{0,50}forever)"}
+        ],
+        "extractors": []
+    },
+
+    # ── API SECURITY ─────────────────────────────────────────────
+    {
+        "id": "api-versioning-issues",
+        "name": "Deprecated API Version Accessible",
+        "severity": "medium",
+        "category": "api",
+        "tags": ["api", "versioning"],
+        "description": "Old/deprecated API version endpoints are still accessible.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/api/v1/", "/api/v0/", "/api/v1", "/v1/api/", "/v0/"],
+             "body_regex": r"(\{|\[)",
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "unversioned-api-exposed",
+        "name": "Unversioned API Exposed",
+        "severity": "medium",
+        "category": "api",
+        "tags": ["api", "versioning", "exposure"],
+        "description": "Unversioned API endpoints accessible — version control and deprecation enforcement absent.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/api/users", "/api/user", "/api/accounts", "/api/admin",
+                       "/api/config", "/api/settings"],
+             "body_regex": r"(\{|\[)",
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "api-rate-limiting-disabled",
+        "name": "API Rate Limiting Disabled",
+        "severity": "medium",
+        "category": "api",
+        "tags": ["api", "rate-limiting"],
+        "description": "No rate-limiting headers detected on API endpoint — brute-force and enumeration possible.",
+        "matchers": [
+            {"type": "header_absent", "key": "x-ratelimit-limit"},
+            {"type": "header_absent", "key": "retry-after"}
+        ],
+        "match_condition": "all",
+        "extractors": []
+    },
+    {
+        "id": "api-documentation-leak",
+        "name": "API Documentation Publicly Accessible",
+        "severity": "info",
+        "category": "api",
+        "tags": ["api", "documentation", "exposure"],
+        "description": "API documentation endpoint accessible without authentication.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/api/docs", "/api/documentation", "/docs/api",
+                       "/redoc", "/api/redoc", "/api-docs/", "/api/schema"],
+             "body_regex": r"(openapi|swagger|api.?documentation|endpoint|schema)",
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "soap-xml-endpoint-exposed",
+        "name": "SOAP/XML Web Service Exposed",
+        "severity": "medium",
+        "category": "api",
+        "tags": ["soap", "xml", "api", "wsdl"],
+        "description": "SOAP/XML web service endpoint publicly accessible — WSDL may expose internal service details.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/ws", "/service", "/services", "/soap", "/wsdl",
+                       "/api/soap", "/RPC2"],
+             "body_regex": r"(wsdl|WSDL|soap:Envelope|<definitions |xmlns:soap=|<wsdl:)",
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "rest-api-method-exposure",
+        "name": "REST API Dangerous Methods Exposed",
+        "severity": "medium",
+        "category": "api",
+        "tags": ["api", "rest", "http-method"],
+        "description": "REST API exposes PUT/DELETE/PATCH methods that allow data modification.",
+        "matchers": [
+            {"type": "header_regex", "key": "allow",
+             "pattern": r"(PUT|DELETE|PATCH)"}
+        ],
+        "extractors": [
+            {"type": "header_value", "key": "allow", "label": "allowed-methods"}
+        ]
+    },
+    {
+        "id": "grpc-endpoint-accessible",
+        "name": "gRPC Endpoint Accessible",
+        "severity": "medium",
+        "category": "api",
+        "tags": ["grpc", "api", "exposure"],
+        "description": "gRPC endpoint accessible — service reflection may expose internal APIs.",
+        "matchers": [
+            {"type": "header_regex", "key": "content-type",
+             "pattern": r"application/grpc"},
+            {"type": "path_probe_list",
+             "paths": ["/grpc.health.v1.Health/Check", "/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo"],
+             "status_codes": [200, 415]}
+        ],
+        "extractors": []
+    },
+
+    # ── SERVER & FRAMEWORK ────────────────────────────────────────
+    {
+        "id": "apache-struts-exposed",
+        "name": "Apache Struts Vulnerability Indicators",
+        "severity": "critical",
+        "category": "server",
+        "tags": ["struts", "java", "rce"],
+        "description": "Apache Struts application detected — known RCE vulnerabilities (S2-045, S2-061) may apply.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(Apache Struts|struts2|org\.apache\.struts|Struts Problem Report)"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "jboss-wildfly-exposed",
+        "name": "JBoss/WildFly Management Console Exposed",
+        "severity": "critical",
+        "category": "server",
+        "tags": ["jboss", "wildfly", "java", "admin"],
+        "description": "JBoss or WildFly management console publicly accessible.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/jmx-console/", "/web-console/", "/management",
+                       "/console/", "/admin-console/"],
+             "body_regex": r"(JBoss|WildFly|JMX Console|Management Console|jboss\.management)",
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "tomcat-manager-exposed",
+        "name": "Tomcat Manager Exposed",
+        "severity": "critical",
+        "category": "server",
+        "tags": ["tomcat", "java", "admin"],
+        "description": "Apache Tomcat Manager application publicly accessible — WAR deployment possible.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/manager/html", "/manager/text", "/host-manager/html",
+                       "/tomcat/manager/html"],
+             "body_regex": r"(Tomcat Web Application Manager|Apache Tomcat|Manager App)",
+             "status_codes": [200, 401]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "jetty-admin-panel",
+        "name": "Jetty Admin Panel Exposed",
+        "severity": "high",
+        "category": "server",
+        "tags": ["jetty", "java", "admin"],
+        "description": "Jetty web server admin interface is publicly accessible.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(Jetty|jetty\.version|Eclipse Jetty)"}
+        ],
+        "extractors": [
+            {"type": "body_regex_extract",
+             "pattern": r"Jetty/?([\d.]+)", "label": "jetty-version"}
+        ]
+    },
+    {
+        "id": "werkzeug-debugger-active",
+        "name": "Werkzeug Interactive Debugger Active",
+        "severity": "critical",
+        "category": "server",
+        "tags": ["werkzeug", "python", "flask", "debug", "rce"],
+        "description": "Werkzeug interactive debugger is active — remote code execution via console possible.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(Werkzeug Debugger|The interactive debugger|werkzeug\.debug|Traceback \(most recent call last\).{0,500}werkzeug)"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "aspnet-config-exposed",
+        "name": "ASP.NET Configuration Exposed",
+        "severity": "critical",
+        "category": "server",
+        "tags": ["aspnet", "dotnet", "config", "disclosure"],
+        "description": "ASP.NET configuration file accessible — connection strings and secrets may be exposed.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/web.config", "/Web.config", "/app.config",
+                       "/applicationHost.config"],
+             "body_regex": r"(connectionString|appSettings|system\.web|machineKey|validationKey)",
+             "status_codes": [200]}
+        ],
+        "extractors": [
+            {"type": "body_regex_extract",
+             "pattern": r"connectionString\s*=\s*\"([^\"]{5,120})\"", "label": "connection-string"}
+        ]
+    },
+    {
+        "id": "iis-default-page",
+        "name": "IIS Default Page Exposed",
+        "severity": "info",
+        "category": "server",
+        "tags": ["iis", "windows", "default-page"],
+        "description": "IIS default welcome page is accessible — server not fully configured.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(IIS Windows Server|Internet Information Services|iis-85|Welcome to IIS)"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "axis2-admin-console",
+        "name": "Apache Axis2 Admin Console Exposed",
+        "severity": "critical",
+        "category": "server",
+        "tags": ["axis2", "java", "admin", "webservice"],
+        "description": "Apache Axis2 administration console accessible — malicious service deployment possible.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/axis2/", "/axis2-admin/", "/axis2/axis2-admin/",
+                       "/services/", "/axis2/services/"],
+             "body_regex": r"(Axis2|Apache Axis2|axis2\.war|Available Services)",
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "coldfusion-admin-exposed",
+        "name": "ColdFusion Administrator Exposed",
+        "severity": "critical",
+        "category": "server",
+        "tags": ["coldfusion", "adobe", "admin"],
+        "description": "Adobe ColdFusion administrator interface publicly accessible.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/CFIDE/administrator/", "/cfide/administrator/",
+                       "/CFIDE/adminapi/", "/cfide/adminapi/"],
+             "body_regex": r"(ColdFusion Administrator|CFIDE|Adobe ColdFusion)",
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "nexus-repository-exposed",
+        "name": "Nexus Repository Manager Exposed",
+        "severity": "high",
+        "category": "server",
+        "tags": ["nexus", "repository", "admin"],
+        "description": "Sonatype Nexus Repository Manager is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/nexus/", "/#browse/browse", "/service/rest/v1/status",
+                       "/nexus/service/local/status"],
+             "body_regex": r"(Nexus Repository|Sonatype Nexus|nexus\.version|\"edition\")",
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+
+    # ── CLOUD & INFRASTRUCTURE ────────────────────────────────────
+    {
+        "id": "aws-s3-bucket-exposure",
+        "name": "AWS S3 Bucket Exposure",
+        "severity": "high",
+        "category": "cloud",
+        "tags": ["aws", "s3", "cloud", "exposure"],
+        "description": "AWS S3 bucket reference found — bucket may be publicly accessible.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(s3\.amazonaws\.com|s3://[a-z0-9][a-z0-9\-]{1,61}[a-z0-9]|\.s3\.amazonaws\.com|\.s3-[a-z0-9\-]+\.amazonaws\.com)"}
+        ],
+        "extractors": [
+            {"type": "body_regex_extract",
+             "pattern": r"([a-z0-9][a-z0-9\-]{1,61}[a-z0-9])\.s3[^\"'\s]{0,40}", "label": "s3-bucket"}
+        ]
+    },
+    {
+        "id": "gcp-metadata-accessible",
+        "name": "GCP Metadata Service Accessible",
+        "severity": "critical",
+        "category": "cloud",
+        "tags": ["gcp", "cloud", "ssrf", "metadata"],
+        "description": "GCP metadata service response patterns detected — SSRF or misconfigured service possible.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(metadata\.google\.internal|computeMetadata|instance/service-accounts|gcp-metadata)"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "azure-blob-storage-exposed",
+        "name": "Azure Blob Storage Exposed",
+        "severity": "high",
+        "category": "cloud",
+        "tags": ["azure", "cloud", "storage", "exposure"],
+        "description": "Azure Blob Storage URL detected — container or blob may be publicly accessible.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(blob\.core\.windows\.net|\.blob\.core\.windows\.net/[a-zA-Z0-9\-]+)"}
+        ],
+        "extractors": [
+            {"type": "body_regex_extract",
+             "pattern": r"([a-z0-9]+\.blob\.core\.windows\.net/[a-zA-Z0-9\-]+)", "label": "azure-blob-url"}
+        ]
+    },
+    {
+        "id": "docker-registry-exposed",
+        "name": "Docker Registry Exposed",
+        "severity": "high",
+        "category": "cloud",
+        "tags": ["docker", "registry", "container", "exposure"],
+        "description": "Docker private registry accessible without authentication.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/v2/", "/v2/_catalog"],
+             "body_regex": r"(repositories|\"name\")",
+             "status_codes": [200]}
+        ],
+        "extractors": [
+            {"type": "body_regex_extract",
+             "pattern": r"\"repositories\":\[([^\]]{1,200})\]", "label": "docker-repos"}
+        ]
+    },
+    {
+        "id": "kubernetes-dashboard-exposed",
+        "name": "Kubernetes Dashboard Exposed",
+        "severity": "critical",
+        "category": "cloud",
+        "tags": ["kubernetes", "k8s", "dashboard", "admin"],
+        "description": "Kubernetes dashboard is publicly accessible — cluster management without auth possible.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/",
+                       "/#/overview", "/api/v1/"],
+             "body_regex": r"(kubernetes-dashboard|Kubernetes Dashboard|k8s\.io|\"apiVersion\")",
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "terraform-state-file-exposed",
+        "name": "Terraform State File Exposed",
+        "severity": "critical",
+        "category": "cloud",
+        "tags": ["terraform", "infrastructure", "secrets", "exposure"],
+        "description": "Terraform state file accessible — full infrastructure config and secrets exposed.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/terraform.tfstate", "/.terraform/terraform.tfstate",
+                       "/infra/terraform.tfstate", "/infrastructure/terraform.tfstate"],
+             "body_regex": r"(\"terraform_version\"|\"resources\"|\"outputs\")",
+             "status_codes": [200]}
+        ],
+        "extractors": [
+            {"type": "body_regex_extract",
+             "pattern": r"\"terraform_version\":\s*\"([^\"]+)\"", "label": "tf-version"}
+        ]
+    },
+    {
+        "id": "cloudformation-stack-exposed",
+        "name": "CloudFormation Stack Info Exposed",
+        "severity": "high",
+        "category": "cloud",
+        "tags": ["aws", "cloudformation", "infrastructure", "exposure"],
+        "description": "CloudFormation template or stack information publicly accessible.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/cloudformation.json", "/cloudformation.yaml",
+                       "/stack.json", "/infrastructure.json", "/cfn-template.json"],
+             "body_regex": r"(AWSTemplateFormatVersion|CloudFormation|\"Resources\"|\"Parameters\")",
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+
+    # ── FILE UPLOAD & PATH TRAVERSAL ──────────────────────────────
+    {
+        "id": "unrestricted-file-upload",
+        "name": "Unrestricted File Upload Endpoint",
+        "severity": "critical",
+        "category": "file-upload",
+        "tags": ["upload", "rce", "file-upload"],
+        "description": "File upload endpoint detected that may accept unrestricted file types.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(<input[^>]+type=[\"']file[\"']|enctype=[\"']multipart/form-data[\"']|upload.{0,30}file|file.{0,30}upload)"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "path-traversal-indicators",
+        "name": "Path Traversal Vulnerability Indicators",
+        "severity": "high",
+        "category": "file-upload",
+        "tags": ["path-traversal", "lfi", "rfi"],
+        "description": "Response contains path traversal indicators — directory traversal attack may be possible.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(\.\./|\.\.\\|%2e%2e%2f|%252e%252e|/etc/passwd|/etc/shadow|/windows/win.ini|root:x:0:0:)"}
+        ],
+        "extractors": [
+            {"type": "body_regex_extract",
+             "pattern": r"(root:[^:]+:[^:]+:[^:]+:[^:\n]+)", "label": "passwd-entry"}
+        ]
+    },
+    {
+        "id": "arbitrary-file-download",
+        "name": "Arbitrary File Download Endpoint",
+        "severity": "high",
+        "category": "file-upload",
+        "tags": ["lfi", "download", "path-traversal"],
+        "description": "File download endpoint with user-controlled filename detected — path traversal risk.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(download\.php\?file=|download\.php\?path=|file\.php\?name=|getfile\.php|filedownload\.php|download\?filename=|attachment\.php\?id=)"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "upload-directory-listing",
+        "name": "Upload Directory Listing Accessible",
+        "severity": "high",
+        "category": "file-upload",
+        "tags": ["upload", "directory-listing", "exposure"],
+        "description": "Upload directory has listing enabled — all uploaded files are enumerable.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/uploads/", "/upload/", "/files/", "/attachments/",
+                       "/media/uploads/", "/assets/uploads/"],
+             "body_regex": r"(Index of /|Directory listing|Parent Directory)",
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "temp-file-exposure",
+        "name": "Temporary File Exposed",
+        "severity": "medium",
+        "category": "file-upload",
+        "tags": ["exposure", "temp-files"],
+        "description": "Temporary or swap files accessible in web root — source code or data exposed.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/index.php~", "/index.php.bak", "/config.php~",
+                       "/config.php.bak", "/.htaccess.bak", "/index.html.bak",
+                       "/config.bak", "/settings.py.bak"],
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+
+    # ── SERIALIZATION & DESERIALIZATION ───────────────────────────
+    {
+        "id": "java-serialization-gadgets",
+        "name": "Java Serialization Gadget Indicators",
+        "severity": "critical",
+        "category": "deserialization",
+        "tags": ["java", "deserialization", "rce"],
+        "description": "Java serialized object magic bytes or deserialization error detected — RCE risk.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(java\.io\.ObjectInputStream|java\.lang\.ClassNotFoundException|org\.apache\.commons\.collections|java\.rmi\.|ysoserial|InvalidClassException|SerialVersionUID)"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "python-pickle-deserialization",
+        "name": "Python Pickle Deserialization Indicators",
+        "severity": "critical",
+        "category": "deserialization",
+        "tags": ["python", "pickle", "deserialization", "rce"],
+        "description": "Python pickle deserialization indicators detected — arbitrary code execution possible.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(pickle\.loads|cPickle|_pickle|Unpickler|REDUCE opcode|pickle\.UnpicklingError|__reduce__)"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "ruby-yaml-deserialization",
+        "name": "Ruby YAML Deserialization Indicators",
+        "severity": "critical",
+        "category": "deserialization",
+        "tags": ["ruby", "yaml", "deserialization", "rce"],
+        "description": "Ruby YAML deserialization indicators detected — code execution via YAML.load possible.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(YAML::load|Psych::SyntaxError|Psych::BadAlias|ruby/object:|ruby/sym:|Syck|ActiveSupport::HashWithIndifferentAccess)"}
+        ],
+        "extractors": []
+    },
+
+    # ── OTHER CRITICAL ISSUES ─────────────────────────────────────
+    {
+        "id": "open-redirect-patterns",
+        "name": "Open Redirect Patterns",
+        "severity": "medium",
+        "category": "redirect",
+        "tags": ["open-redirect", "phishing"],
+        "description": "Unvalidated redirect URL parameter detected — open redirect to attacker-controlled URL possible.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(<a[^>]+href\s*=\s*[\"'][^\"']*\?[^\"']*(redirect|return|url|next|goto|target|redir)=[^\"']+[\"']|window\.location\s*=\s*[^;]+[\?&](redirect|url|next)=)"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "xxe-vulnerability-indicators",
+        "name": "XXE Vulnerability Indicators",
+        "severity": "high",
+        "category": "injection",
+        "tags": ["xxe", "xml", "injection"],
+        "description": "XML external entity processing indicators detected — XXE injection may be possible.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(<!ENTITY|SYSTEM\s+\"(file|http|ftp)://|<!DOCTYPE[^>]+SYSTEM|xml version=.{0,50}encoding|libxml2|expat|xerces|JAXP|org\.xml\.sax)"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "ssrf-parameter-detection",
+        "name": "SSRF Parameter Patterns Detected",
+        "severity": "high",
+        "category": "ssrf",
+        "tags": ["ssrf", "injection"],
+        "description": "Request parameters that may be vulnerable to Server-Side Request Forgery detected.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(name=[\"']?(url|uri|link|src|href|host|dest|destination|proxy|target|endpoint|redirect)[\"']?|[?&](url|uri|link|src|href|host|proxy|target|endpoint|redirect)=https?://)"}
+        ],
+        "extractors": [
+            {"type": "body_regex_extract",
+             "pattern": r"name=[\"']?(url|uri|link|src|href|proxy|target|endpoint)[\"']?", "label": "ssrf-param"}
+        ]
+    },
+    {
+        "id": "race-condition-indicators",
+        "name": "Race Condition Vulnerability Indicators",
+        "severity": "medium",
+        "category": "logic",
+        "tags": ["race-condition", "concurrency"],
+        "description": "Application patterns suggest potential race condition vulnerabilities in critical operations.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(pending.{0,30}transaction|double.?spend|concurrent.{0,30}request|check.?then.?act|time.?of.?check|TOCTOU|concurrent.{0,20}user)"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "insecure-randomness",
+        "name": "Insecure Randomness Indicators",
+        "severity": "medium",
+        "category": "cryptography",
+        "tags": ["crypto", "randomness", "weak-crypto"],
+        "description": "Insecure or predictable random number generation patterns detected.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(Math\.random\(\)|rand\(\)|mt_rand\(\)|srand\(time|random\.random\(\)|new Random\(\)|java\.util\.Random|System\.currentTimeMillis\(\).{0,30}token)"}
+        ],
+        "extractors": []
+    },
 ]
 
 # ─────────────────────────────────────────────
