@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════════════════════════════╗
+╔═══════════════════════════════════════════════════════════════════[...]
 ║                                                                      ║
 ║   ██╗  ██╗ █████╗ ██████╗ ███╗   ███╗ █████╗ ███████╗              ║
 ║   ██║ ██╔╝██╔══██╗██╔══██╗████╗ ████║██╔══██╗██╔════╝              ║
@@ -19,7 +19,7 @@
 ║   ░░░   kArmas_noob — Template-Based Vulnerability Scanner   ░░░    ║
 ║         Passive Detection │ No Exploitation │ Auth Required          ║
 ║                  "We Are Legion. We Do Not Forgive."                 ║
-╚══════════════════════════════════════════════════════════════════════╝
+╚═══════════════════════════════════════════════════════════════════[...]
 
   AUTHORIZED USE ONLY — Passive/Detection mode.
   No active exploitation. Requires --agree flag.
@@ -45,6 +45,8 @@ import traceback
 import urllib.request
 import urllib.error
 import urllib.parse
+import subprocess
+import shutil
 from datetime import datetime
 from collections import defaultdict
 from typing import Any
@@ -107,6 +109,112 @@ def matrix_rain(duration: float = 2.2):
         sys.stdout.write("\r" + " " * cols + "\r")
     except Exception:
         pass
+
+# ─────────────────────────────────────────────
+#  NUCLEI INTEGRATION
+# ─────────────────────────────────────────────
+class NucleiRunner:
+    """Runs Nuclei templates and parses results."""
+    
+    def __init__(self, timeout: int = 30, verbose: bool = False):
+        self.timeout = timeout
+        self.verbose = verbose
+        self.nuclei_path = shutil.which("nuclei")
+    
+    def is_installed(self) -> bool:
+        """Check if Nuclei is installed."""
+        return self.nuclei_path is not None
+    
+    def get_version(self) -> str:
+        """Get Nuclei version."""
+        try:
+            result = subprocess.run(
+                [self.nuclei_path, "-version"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            return result.stdout.strip()
+        except Exception:
+            return "unknown"
+    
+    def run_scan(self, target: str, tags: list[str] = None, 
+                 severity: list[str] = None, templates: list[str] = None) -> list[dict]:
+        """
+        Run Nuclei scan against target.
+        
+        Args:
+            target: URL to scan
+            tags: Filter templates by tags (e.g., ["cve", "rce"])
+            severity: Filter by severity (e.g., ["critical", "high"])
+            templates: Specific template IDs to run
+        
+        Returns:
+            List of finding dicts
+        """
+        if not self.is_installed():
+            return []
+        
+        cmd = [self.nuclei_path, "-u", target, "-json", "-silent"]
+        
+        if tags:
+            cmd.extend(["-tags", ",".join(tags)])
+        
+        if severity:
+            cmd.extend(["-severity", ",".join(severity)])
+        
+        if templates:
+            for tmpl in templates:
+                cmd.extend(["-t", tmpl])
+        
+        cmd.extend(["-timeout", str(self.timeout)])
+        cmd.append("-no-color")
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout * 3
+            )
+            
+            findings = []
+            if result.stdout:
+                for line in result.stdout.strip().split("\n"):
+                    if line.strip():
+                        try:
+                            findings.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            pass
+            
+            return findings
+        
+        except subprocess.TimeoutExpired:
+            if self.verbose:
+                print(f"  {Y}[!]{RS} Nuclei scan timeout for {target}")
+            return []
+        except Exception as exc:
+            if self.verbose:
+                print(f"  {R}[ERR]{RS} Nuclei error: {exc}")
+            return []
+    
+    def list_templates(self) -> list[dict]:
+        """List available Nuclei templates."""
+        try:
+            result = subprocess.run(
+                [self.nuclei_path, "-list"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            # Parse template list from output
+            templates = []
+            for line in result.stdout.split("\n"):
+                if line.strip() and ":" in line:
+                    templates.append(line.strip())
+            return templates
+        except Exception:
+            return []
 
 # ─────────────────────────────────────────────
 #  BUILT-IN TEMPLATE LIBRARY
@@ -326,7 +434,7 @@ TEMPLATES: list[dict[str, Any]] = [
         "description": "Detailed stack trace or debug page is publicly accessible.",
         "matchers": [
             {"type": "body_regex",
-             "pattern": r"(Traceback \(most recent call last\)|at [a-zA-Z.]+\(.*\.java:\d+\)|Exception in thread|PHPFatal error|<b>Fatal error</b>|Whitelabel Error Page|DebugView|django\.core\.exceptions)"}
+             "pattern": r"(Traceback \(most recent call last\)|at [a-zA-Z.]+\(.*\.java:\d+\)|Exception in thread|PHPFatal error|<b>Fatal error</b>|Whitelabel Error Page|DebugView|django\.core\.excepti[...]
         ],
         "extractors": [
             {"type": "body_regex_extract", "pattern": r"(Exception|Error)[:\s]+([^\n<]{5,80})", "label": "error-msg"}
@@ -783,7 +891,7 @@ def http_get(url: str, method: str = "GET", body: bytes | None = None,
 class Finding:
     def __init__(self, template_id: str, name: str, severity: str,
                  category: str, description: str, url: str,
-                 matched_on: str, extractions: dict):
+                 matched_on: str, extractions: dict, source: str = "internal"):
         self.template_id = template_id
         self.name = name
         self.severity = severity
@@ -793,6 +901,7 @@ class Finding:
         self.matched_on = matched_on
         self.extractions = extractions
         self.timestamp = datetime.utcnow().isoformat() + "Z"
+        self.source = source  # "internal" or "nuclei"
 
     def to_dict(self) -> dict:
         return {
@@ -805,6 +914,7 @@ class Finding:
             "matched_on": self.matched_on,
             "extractions": self.extractions,
             "timestamp": self.timestamp,
+            "source": self.source,
         }
 
 
@@ -959,6 +1069,7 @@ def evaluate_template(tmpl: dict, base_res: HTTPResult,
         url=matched_on_url,
         matched_on=matched_on_url,
         extractions=extractions,
+        source="internal"
     )
 
 
@@ -975,6 +1086,7 @@ class Scanner:
         self.scanned = 0
         self.total_checks = 0
         self._stop = False
+        self.nuclei_runner = NucleiRunner(timeout=args.timeout, verbose=args.verbose)
 
     def load_targets(self) -> list[str]:
         urls = []
@@ -1024,9 +1136,10 @@ class Scanner:
     def print_finding(self, f: Finding):
         sc = SEV_COLOR.get(f.severity, W)
         icon = SEV_ICON.get(f.severity, "?")
+        src_label = f" {GR}[{f.source}]{RS}" if f.source == "nuclei" else ""
         with self.lock:
             sev_label = f"{sc}[{f.severity.upper()}]{RS}"
-            print(f"\n  {icon}  {sev_label} {BOLD}{f.name}{RS}")
+            print(f"\n  {icon}  {sev_label} {BOLD}{f.name}{RS}{src_label}")
             print(f"     {GR}├─ URL     :{RS} {f.url}")
             print(f"     {GR}├─ ID      :{RS} {f.template_id}")
             print(f"     {GR}├─ Cat     :{RS} {f.category}")
@@ -1034,6 +1147,54 @@ class Scanner:
             for label, vals in f.extractions.items():
                 for v in vals:
                     print(f"       {Y}  ★ {label}: {v}{RS}")
+
+    def scan_target_with_nuclei(self, url: str):
+        """Run Nuclei scan on target."""
+        if not self.nuclei_runner.is_installed():
+            return
+        
+        if self.args.verbose:
+            with self.lock:
+                print(f"\n  {B}[nuclei]{RS} Scanning {url}")
+        
+        # Parse severity filter
+        severity_filter = None
+        if self.args.severity:
+            severity_filter = [s.lower() for s in self.args.severity.split(",")]
+        
+        # Parse tags filter
+        tags_filter = None
+        if self.args.tags:
+            tags_filter = [t.lower() for t in self.args.tags.split(",")]
+        
+        # Run scan
+        nuclei_findings = self.nuclei_runner.run_scan(
+            target=url,
+            tags=tags_filter,
+            severity=severity_filter
+        )
+        
+        # Convert Nuclei results to Finding objects
+        for nf in nuclei_findings:
+            try:
+                finding = Finding(
+                    template_id=nf.get("template-id", nf.get("id", "unknown")),
+                    name=nf.get("info", {}).get("name", nf.get("name", "Nuclei Finding")),
+                    severity=nf.get("info", {}).get("severity", nf.get("severity", "info")).lower(),
+                    category=nf.get("type", "nuclei"),
+                    description=nf.get("info", {}).get("description", ""),
+                    url=nf.get("matched-at", nf.get("url", url)),
+                    matched_on=nf.get("matched-at", nf.get("url", url)),
+                    extractions={"nuclei-data": [json.dumps(nf.get("extracted", {}))]} if nf.get("extracted") else {},
+                    source="nuclei"
+                )
+                with self.lock:
+                    self.findings.append(finding)
+                self.print_finding(finding)
+            except Exception as exc:
+                if self.args.verbose:
+                    with self.lock:
+                        print(f"  {GR}[nuclei-err]{RS} {exc}")
 
     def scan_target(self, url: str, templates: list[dict]):
         if self.args.verbose:
@@ -1078,6 +1239,14 @@ class Scanner:
         print(f"  {G}[*]{RS} Templates   : {W}{len(templates)}{RS}")
         print(f"  {G}[*]{RS} Threads     : {W}{self.args.threads}{RS}")
         print(f"  {G}[*]{RS} Total checks: {W}{self.total_checks}{RS}")
+        
+        # Nuclei info
+        if self.nuclei_runner.is_installed():
+            print(f"  {G}[*]{RS} Nuclei      : {W}✓ Installed ({self.nuclei_runner.get_version()}){RS}")
+        else:
+            if not self.args.no_nuclei:
+                print(f"  {Y}[!]{RS} Nuclei      : {W}Not found (install with: go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest){RS}")
+        
         print(f"\n  {DG}{'─'*60}{RS}")
 
         threads = []
@@ -1086,6 +1255,8 @@ class Scanner:
         def worker(url):
             with sem:
                 self.scan_target(url, templates)
+                if not self.args.no_nuclei and self.nuclei_runner.is_installed():
+                    self.scan_target_with_nuclei(url)
 
         for url in self.targets:
             t = threading.Thread(target=worker, args=(url,), daemon=True)
@@ -1100,14 +1271,18 @@ class Scanner:
 
     def print_summary(self):
         counts = defaultdict(int)
+        source_counts = defaultdict(int)
         for f in self.findings:
             counts[f.severity] += 1
+            source_counts[f.source] += 1
 
         print(f"\n  {DG}{'═'*60}{RS}")
         print(f"  {G}{BOLD}  SCAN COMPLETE{RS}")
         print(f"  {DG}{'─'*60}{RS}")
         print(f"  {W}  Targets scanned : {self.scanned}{RS}")
         print(f"  {W}  Total findings  : {len(self.findings)}{RS}")
+        for src, cnt in source_counts.items():
+            print(f"  {W}  {src.capitalize()} findings : {cnt}{RS}")
         print()
         for sev in ["critical", "high", "medium", "low", "info"]:
             c = counts.get(sev, 0)
@@ -1142,6 +1317,7 @@ class Scanner:
                 for d in data:
                     fh.write(f"[{d['severity'].upper()}] {d['name']}\n")
                     fh.write(f"  URL: {d['url']}\n")
+                    fh.write(f"  Source: {d.get('source', 'internal')}\n")
                     fh.write(f"  {d['description']}\n\n")
             print(f"  {G}[+]{RS} Text report saved → {W}{out}{RS}")
 
@@ -1156,6 +1332,7 @@ class Scanner:
         rows = ""
         for d in data:
             sc = sev_colors.get(d["severity"], "#8d99ae")
+            src = d.get("source", "internal")
             ext_html = ""
             for k, vals in d.get("extractions", {}).items():
                 for v in vals:
@@ -1163,7 +1340,7 @@ class Scanner:
             rows += f"""
 <tr class="sev-{d['severity']}">
   <td><span class="badge" style="background:{sc}">{d['severity'].upper()}</span></td>
-  <td>{d['name']}</td>
+  <td>{d['name']}<br/><small style="color:#888">[{src}]</small></td>
   <td class="url">{d['url']}</td>
   <td>{d['category']}</td>
   <td>{d['description']}{ext_html}</td>
@@ -1264,6 +1441,7 @@ examples:
   python3 kArmas_noob.py --agree -l targets.txt -t 20 --severity critical,high
   python3 kArmas_noob.py --agree -u https://example.com --tags cors,headers -v
   python3 kArmas_noob.py --list-templates
+  python3 kArmas_noob.py --agree -u https://example.com --no-nuclei
 """
     )
     p.add_argument("--agree", action="store_true",
@@ -1288,6 +1466,8 @@ examples:
                    help="Filter by category: headers,exposure,secrets…")
     p.add_argument("--list-templates", action="store_true",
                    help="List all built-in templates and exit")
+    p.add_argument("--no-nuclei", action="store_true",
+                   help="Disable Nuclei integration (even if installed)")
     p.add_argument("-v", "--verbose", action="store_true",
                    help="Verbose output")
     return p.parse_args()
