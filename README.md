@@ -14,3 +14,13 @@ python3 kArmas_noob.py --agree -u https://target.com --tags cors,secrets -v
 
 # List all templates
 python3 kArmas_noob.py --list-templates
+
+
+# Scan with both internal templates and Nuclei
+python3 kArmas_noob.py --agree -u https://example.com
+
+# Skip Nuclei scans
+python3 kArmas_noob.py --agree -u https://example.com --no-nuclei
+
+# Filter Nuclei by tags/severity
+python3 kArmas_noob.py --agree -u https://example.com --tags cve,rce --severity critical
