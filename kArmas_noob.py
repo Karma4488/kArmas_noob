@@ -794,9 +794,654 @@ TEMPLATES: list[dict[str, Any]] = [
         ],
         "extractors": []
     },
-]
 
-# ─────────────────────────────────────────────
+    # ── ADDITIONAL HEADERS / CORS / COOKIES ──────────────────────
+    {
+        "id": "missing-cache-control",
+        "name": "Missing Cache-Control",
+        "severity": "info",
+        "category": "headers",
+        "tags": ["headers", "caching"],
+        "description": "Cache-Control header is missing from the response.",
+        "matchers": [
+            {"type": "header_absent", "key": "cache-control"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "missing-clear-site-data",
+        "name": "Missing Clear-Site-Data",
+        "severity": "info",
+        "category": "headers",
+        "tags": ["headers", "privacy"],
+        "description": "Clear-Site-Data header is not present in the response.",
+        "matchers": [
+            {"type": "header_absent", "key": "clear-site-data"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "missing-cross-origin-embedder-policy",
+        "name": "Missing Cross-Origin-Embedder-Policy",
+        "severity": "low",
+        "category": "headers",
+        "tags": ["headers"],
+        "description": "Cross-Origin-Embedder-Policy header is missing from the response.",
+        "matchers": [
+            {"type": "header_absent", "key": "cross-origin-embedder-policy"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "missing-cross-origin-opener-policy",
+        "name": "Missing Cross-Origin-Opener-Policy",
+        "severity": "low",
+        "category": "headers",
+        "tags": ["headers"],
+        "description": "Cross-Origin-Opener-Policy header is missing from the response.",
+        "matchers": [
+            {"type": "header_absent", "key": "cross-origin-opener-policy"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "missing-cross-origin-resource-policy",
+        "name": "Missing Cross-Origin-Resource-Policy",
+        "severity": "low",
+        "category": "headers",
+        "tags": ["headers"],
+        "description": "Cross-Origin-Resource-Policy header is missing from the response.",
+        "matchers": [
+            {"type": "header_absent", "key": "cross-origin-resource-policy"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "x-aspnet-version-disclosure",
+        "name": "X-AspNet-Version Disclosure",
+        "severity": "low",
+        "category": "information-disclosure",
+        "tags": ["disclosure", "headers", "aspnet"],
+        "description": "X-AspNet-Version header reveals ASP.NET version information.",
+        "matchers": [
+            {"type": "header_present", "key": "x-aspnet-version"}
+        ],
+        "extractors": [
+            {"type": "header_value", "key": "x-aspnet-version", "label": "aspnet-version"}
+        ]
+    },
+    {
+        "id": "via-proxy-disclosure",
+        "name": "Via Proxy Disclosure",
+        "severity": "info",
+        "category": "headers",
+        "tags": ["proxy", "headers"],
+        "description": "Via header discloses intermediary proxy or gateway details.",
+        "matchers": [
+            {"type": "header_present", "key": "via"}
+        ],
+        "extractors": [
+            {"type": "header_value", "key": "via", "label": "via"}
+        ]
+    },
+    {
+        "id": "access-control-expose-headers-wildcard",
+        "name": "CORS Expose-Headers Wildcard",
+        "severity": "medium",
+        "category": "cors",
+        "tags": ["cors"],
+        "description": "Access-Control-Expose-Headers is set to wildcard.",
+        "matchers": [
+            {"type": "header_exact", "key": "access-control-expose-headers", "value": "*"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "cors-allow-origin-reflected",
+        "name": "CORS Reflected Origin",
+        "severity": "medium",
+        "category": "cors",
+        "tags": ["cors"],
+        "description": "Access-Control-Allow-Origin reflects a specific HTTP or HTTPS origin.",
+        "matchers": [
+            {"type": "header_regex", "key": "access-control-allow-origin", "pattern": r"^https?://"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "cookie-httponly-missing-all",
+        "name": "Cookie Missing HttpOnly (Any Cookie)",
+        "severity": "medium",
+        "category": "cookies",
+        "tags": ["cookie", "xss"],
+        "description": "A cookie is missing the HttpOnly flag.",
+        "matchers": [
+            {"type": "cookie_flag_absent", "flag": "httponly"}
+        ],
+        "extractors": []
+    },
+
+    # ── ADDITIONAL EXPOSURE / API / DISCLOSURE ───────────────────
+    {
+        "id": "exposed-svn-repo",
+        "name": "Exposed SVN Repository",
+        "severity": "high",
+        "category": "exposure",
+        "tags": ["svn", "source-code"],
+        "description": "Subversion repository metadata is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/.svn/entries", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "exposed-hg-repo",
+        "name": "Exposed Mercurial Repository",
+        "severity": "high",
+        "category": "exposure",
+        "tags": ["mercurial", "source-code"],
+        "description": "Mercurial repository metadata is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/.hg/requires", "body_regex": r"revlogv", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "exposed-bzr-repo",
+        "name": "Exposed Bazaar Repository",
+        "severity": "medium",
+        "category": "exposure",
+        "tags": ["bazaar", "source-code"],
+        "description": "Bazaar repository metadata is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/.bzr/branch-format", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "exposed-cvs-repo",
+        "name": "Exposed CVS Repository",
+        "severity": "medium",
+        "category": "exposure",
+        "tags": ["cvs", "source-code"],
+        "description": "CVS repository metadata is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/CVS/Root", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "sourcemap-exposed",
+        "name": "Source Map Exposed",
+        "severity": "medium",
+        "category": "exposure",
+        "tags": ["sourcemap", "js"],
+        "description": "Source map files are publicly accessible.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/main.js.map", "/app.js.map", "/bundle.js.map", "/styles.css.map"],
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "htaccess-exposed",
+        "name": ".htaccess Exposed",
+        "severity": "medium",
+        "category": "exposure",
+        "tags": ["apache", "config"],
+        "description": "Apache .htaccess configuration file is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/.htaccess",
+             "body_regex": r"(RewriteEngine|Require|AuthType)", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "web-config-exposed",
+        "name": "web.config Exposed",
+        "severity": "medium",
+        "category": "exposure",
+        "tags": ["iis", "config"],
+        "description": "IIS web.config file is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/web.config",
+             "body_regex": r"system\.web", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "docker-compose-exposed",
+        "name": "docker-compose.yml Exposed",
+        "severity": "high",
+        "category": "exposure",
+        "tags": ["docker", "config"],
+        "description": "docker-compose.yml file is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/docker-compose.yml",
+             "body_regex": r"services:", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "travis-config-exposed",
+        "name": ".travis.yml Exposed",
+        "severity": "info",
+        "category": "exposure",
+        "tags": ["ci-cd", "config"],
+        "description": "Travis CI configuration file is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/.travis.yml",
+             "body_regex": r"language:", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "github-workflows-exposed",
+        "name": "GitHub Workflows Exposed",
+        "severity": "medium",
+        "category": "exposure",
+        "tags": ["github", "ci-cd"],
+        "description": "GitHub Actions workflow definitions are publicly accessible.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/.github/workflows/ci.yml", "/.github/workflows/main.yml",
+                       "/.github/workflows/build.yml"],
+             "body_regex": r"on:", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "exposed-unix-passwd",
+        "name": "Exposed /etc/passwd",
+        "severity": "critical",
+        "category": "exposure",
+        "tags": ["lfi", "filesystem"],
+        "description": "/etc/passwd contents are publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/etc/passwd",
+             "body_regex": r"^root:", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "exposed-windows-ini",
+        "name": "Exposed Windows INI",
+        "severity": "medium",
+        "category": "exposure",
+        "tags": ["windows", "filesystem"],
+        "description": "Windows INI file is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/win.ini",
+             "body_regex": r"\[windows\]", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "cgi-test-cgi-exposed",
+        "name": "CGI test-cgi Exposed",
+        "severity": "medium",
+        "category": "exposure",
+        "tags": ["cgi", "misconfiguration"],
+        "description": "Sample CGI test endpoint is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/cgi-bin/test-cgi",
+             "body_regex": r"(CGI|SERVER_SOFTWARE)", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "tomcat-manager-exposed",
+        "name": "Tomcat Manager Exposed",
+        "severity": "high",
+        "category": "exposure",
+        "tags": ["tomcat", "admin"],
+        "description": "Tomcat management interface is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/manager/html", "/host-manager/html"],
+             "body_regex": r"(Tomcat|Manager)", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "jboss-jmx-console",
+        "name": "JBoss JMX Console Exposed",
+        "severity": "high",
+        "category": "exposure",
+        "tags": ["jboss", "admin"],
+        "description": "JBoss JMX console is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/jmx-console",
+             "body_regex": r"(JBoss|JMX)", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "jenkins-script-console",
+        "name": "Jenkins Script Console Exposed",
+        "severity": "critical",
+        "category": "exposure",
+        "tags": ["jenkins", "rce"],
+        "description": "Jenkins script console is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/script",
+             "body_regex": r"(Jenkins|Script Console)", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "elastic-search-exposed",
+        "name": "Elasticsearch Exposed",
+        "severity": "critical",
+        "category": "exposure",
+        "tags": ["elasticsearch", "database"],
+        "description": "Elasticsearch cluster health endpoint is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/_cluster/health",
+             "body_regex": r"cluster_name", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "kibana-exposed",
+        "name": "Kibana Exposed",
+        "severity": "high",
+        "category": "exposure",
+        "tags": ["kibana", "elastic"],
+        "description": "Kibana interface is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/app/kibana",
+             "body_regex": r"(Kibana|kibana)", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "couchdb-unprotected",
+        "name": "CouchDB Unprotected",
+        "severity": "high",
+        "category": "exposure",
+        "tags": ["couchdb", "database"],
+        "description": "CouchDB database listing endpoint is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/_all_dbs",
+             "body_regex": r"\[", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "etcd-unauthenticated",
+        "name": "etcd Unauthenticated Access",
+        "severity": "critical",
+        "category": "exposure",
+        "tags": ["etcd", "database"],
+        "description": "etcd key listing endpoint is publicly accessible without authentication.",
+        "matchers": [
+            {"type": "path_probe", "path": "/v2/keys",
+             "body_regex": r"\"node\"", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "rabbitmq-management",
+        "name": "RabbitMQ Management API Exposed",
+        "severity": "high",
+        "category": "exposure",
+        "tags": ["rabbitmq", "admin"],
+        "description": "RabbitMQ management API endpoint is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/api/overview",
+             "body_regex": r"(rabbitmq|RabbitMQ)", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "spark-master-ui",
+        "name": "Spark Master UI Exposed",
+        "severity": "high",
+        "category": "exposure",
+        "tags": ["spark", "admin"],
+        "description": "Spark master UI is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/",
+             "body_regex": r"(Spark Master|spark-master)", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "hadoop-yarn-exposed",
+        "name": "Hadoop YARN Exposed",
+        "severity": "critical",
+        "category": "exposure",
+        "tags": ["hadoop", "yarn"],
+        "description": "Hadoop YARN cluster information endpoint is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/ws/v1/cluster/info",
+             "body_regex": r"(resourceManager|hadoopVersion)", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "docker-registry-exposed",
+        "name": "Docker Registry Exposed",
+        "severity": "high",
+        "category": "exposure",
+        "tags": ["docker", "registry"],
+        "description": "Docker Registry v2 endpoint is reachable.",
+        "matchers": [
+            {"type": "path_probe", "path": "/v2/", "status_codes": [200, 401]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "sitemap-xml-exposed",
+        "name": "sitemap.xml Exposed",
+        "severity": "info",
+        "category": "information-disclosure",
+        "tags": ["sitemap", "enumeration"],
+        "description": "sitemap.xml is publicly accessible and reveals site structure.",
+        "matchers": [
+            {"type": "path_probe", "path": "/sitemap.xml",
+             "body_regex": r"(<urlset|<sitemapindex)", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "wadl-exposed",
+        "name": "WADL Documentation Exposed",
+        "severity": "info",
+        "category": "api",
+        "tags": ["api", "documentation"],
+        "description": "WADL application description is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/application.wadl",
+             "body_regex": r"(<application|<resources)", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+
+    # ── ADDITIONAL SECRETS / DISCLOSURE ──────────────────────────
+    {
+        "id": "exposed-s3-bucket-url",
+        "name": "S3 Bucket URL in Response",
+        "severity": "medium",
+        "category": "secrets",
+        "tags": ["aws", "s3"],
+        "description": "Amazon S3 bucket URL found in the HTTP response body.",
+        "matchers": [
+            {"type": "body_regex", "pattern": r"https?://[a-z0-9_-]+\.s3[.-][a-z0-9-]+\.amazonaws\.com"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "firebase-url-leak",
+        "name": "Firebase URL in Response",
+        "severity": "medium",
+        "category": "secrets",
+        "tags": ["firebase", "api"],
+        "description": "Firebase Realtime Database URL found in the HTTP response body.",
+        "matchers": [
+            {"type": "body_regex", "pattern": r"https?://[a-z0-9_-]+\.firebaseio\.com"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "slack-webhook-leak",
+        "name": "Slack Webhook in Response",
+        "severity": "high",
+        "category": "secrets",
+        "tags": ["slack", "webhook"],
+        "description": "Slack webhook URL found in the HTTP response body.",
+        "matchers": [
+            {"type": "body_regex", "pattern": r"https://hooks\.slack\.com/services/[A-Z0-9]+/[A-Z0-9]+/[a-zA-Z0-9]+"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "stripe-api-key-leak",
+        "name": "Stripe API Key in Response",
+        "severity": "critical",
+        "category": "secrets",
+        "tags": ["stripe", "api-key"],
+        "description": "Stripe API key pattern found in the HTTP response body.",
+        "matchers": [
+            {"type": "body_regex", "pattern": r"sk_(live|test)_[0-9a-zA-Z]{24,}"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "mailgun-api-key-leak",
+        "name": "Mailgun API Key in Response",
+        "severity": "high",
+        "category": "secrets",
+        "tags": ["mailgun", "api-key"],
+        "description": "Mailgun API key pattern found in the HTTP response body.",
+        "matchers": [
+            {"type": "body_regex", "pattern": r"key-[0-9a-zA-Z]{32}"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "twilio-account-sid-leak",
+        "name": "Twilio Account SID in Response",
+        "severity": "high",
+        "category": "secrets",
+        "tags": ["twilio", "api-key"],
+        "description": "Twilio Account SID pattern found in the HTTP response body.",
+        "matchers": [
+            {"type": "body_regex", "pattern": r"AC[0-9a-f]{32}"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "generic-api-key-leak",
+        "name": "Generic API Key/Tokn in Response",
+        "severity": "medium",
+        "category": "secrets",
+        "tags": ["api-key", "secrets"],
+        "description": "Generic API key or token assignment found in the HTTP response body.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(api[_-]?key|api[_-]?token|auth[_-]?token)\s*[:=]\s*['\"][a-zA-Z0-9_\-]{16,}['\"]"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "private-github-token",
+        "name": "GitHub Personal Access Token in Response",
+        "severity": "critical",
+        "category": "secrets",
+        "tags": ["github", "token"],
+        "description": "GitHub personal access token pattern found in the HTTP response body.",
+        "matchers": [
+            {"type": "body_regex",
+             "pattern": r"(ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{22})"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "sendgrid-api-key",
+        "name": "SendGrid API Key in Response",
+        "severity": "critical",
+        "category": "secrets",
+        "tags": ["sendgrid", "api-key"],
+        "description": "SendGrid API key pattern found in the HTTP response body.",
+        "matchers": [
+            {"type": "body_regex", "pattern": r"SG\.[0-9A-Za-z_-]{22}\.[0-9A-Za-z_-]{43}"}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "leaked-internal-ip",
+        "name": "Internal IP Address in Response",
+        "severity": "low",
+        "category": "information-disclosure",
+        "tags": ["disclosure", "network"],
+        "description": "RFC1918 internal IP address found in the HTTP response body.",
+        "matchers": [
+            {"type": "body_regex", "pattern": r"(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)"}
+        ],
+        "extractors": []
+    },
+
+    # ── ADDITIONAL CMS ────────────────────────────────────────────
+    {
+        "id": "wordpress-json-user-enum",
+        "name": "WordPress REST User Enumeration",
+        "severity": "medium",
+        "category": "cms",
+        "tags": ["wordpress", "enumeration"],
+        "description": "WordPress REST API user listing endpoint is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/wp-json/wp/v2/users",
+             "body_regex": r"\"name\":", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "wordpress-login-page",
+        "name": "WordPress Login Page Exposed",
+        "severity": "info",
+        "category": "cms",
+        "tags": ["wordpress", "login"],
+        "description": "WordPress login page is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/wp-login.php",
+             "body_regex": r"(wp-submit|Lost your password)", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "drupal-login-exposed",
+        "name": "Drupal Login Exposed",
+        "severity": "info",
+        "category": "cms",
+        "tags": ["drupal", "login"],
+        "description": "Drupal login page is publicly accessible.",
+        "matchers": [
+            {"type": "path_probe", "path": "/user/login",
+             "body_regex": r"(drupal|form-user-login)", "status_codes": [200]}
+        ],
+        "extractors": []
+    },
+    {
+        "id": "joomla-config-backup",
+        "name": "Joomla Config Backup Exposed",
+        "severity": "critical",
+        "category": "cms",
+        "tags": ["joomla", "secrets"],
+        "description": "Joomla configuration backup files are publicly accessible.",
+        "matchers": [
+            {"type": "path_probe_list",
+             "paths": ["/configuration.php.bak", "/configuration.php~", "/configuration.php.txt"],
+             "status_codes": [200]}
+        ],
+        "extractors": []
+    }
+
+    ]
+
+
 #  SEVERITY CONFIG
 # ─────────────────────────────────────────────
 SEV_COLOR = {
